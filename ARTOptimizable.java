@@ -1,32 +1,22 @@
 package cc.mallet.topics;
 
-/** This class implements the value and gradient functions for
- *   Dirichlet-multinomial Regression. See Guimaraes and Lindrooth, 
- *   for a general introduction to DMR, 
- *   and Mimno and McCallum (UAI, 2008) for an application to 
- *   multinomial mixture models.
+/** 
+ * This is an implementation of optimization of ARTModel
  */
 
 import cc.mallet.optimize.Optimizable;
 import cc.mallet.classify.MaxEnt;
-
 import cc.mallet.types.InstanceList;
 import cc.mallet.types.Instance;
 import cc.mallet.types.Alphabet;
 import cc.mallet.types.FeatureVector;
 import cc.mallet.types.Dirichlet;
 import cc.mallet.types.MatrixOps;
-
 import cc.mallet.util.MalletLogger;
 import cc.mallet.util.MalletProgressMessageLogger;
-
 import java.util.logging.*;
-import java.util.*;
-
 import java.text.NumberFormat;
 import java.text.DecimalFormat;
-
-import gnu.trove.TIntIntHashMap;
 
 public class ARTOptimizable implements Optimizable.ByGradientValue {
 
@@ -49,9 +39,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
     double gaussianPriorMean = DEFAULT_GAUSSIAN_PRIOR_MEAN;
     double gaussianPriorVariance = DEFAULT_GAUSSIAN_PRIOR_VARIANCE;
 
-	// Allowing the default feature (the base level) to 
-	//  fluctuate more freely than the feature parameters leads
-	//  to much better results.
     double defaultFeatureGaussianPriorVariance = DEFAULT_LARGE_GAUSSIAN_PRIOR_VARIANCE;
 
 	double[] parameters;
@@ -73,17 +60,12 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 		Alphabet labelAlphabet = instances.getTargetAlphabet();
 
 		this.numLabels = labelAlphabet.size();
-
-		// Add one feature for the "default feature".
-		this.numFeatures = alphabet.size() + 1; // add a spot for the intercept term
-            
-		//System.out.println("num features: " + numFeatures + " numLabels: " + numLabels);
+		this.numFeatures = alphabet.size() + 1; 
 
 		this.defaultFeatureIndex = numFeatures - 1;
 
 		this.parameters = new double [numLabels * numFeatures];
 
-		//this.constraints = new double [numLabels * numFeatures];
 		this.cachedGradient = new double [numLabels * numFeatures];
 
 		if (initialClassifier != null) {
@@ -101,8 +83,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 
 		cachedValueStale = true;
 		cachedGradientStale = true;
-
-		// Initialize the constraints
 
 		logger.fine("Number of instances in training list = " + trainingList.size());
 
@@ -130,19 +110,12 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 
 		}
 
-		//TestMaximizable.testValueAndGradientCurrentParameters (this);
 	}
 	
-	/** Set the variance for the default features (aka intercept terms), generally 
-	 *   larger than the variance for the regular features.
-	 */
 	public void setInterceptGaussianPriorVariance(double sigmaSquared) {
 		this.defaultFeatureGaussianPriorVariance = sigmaSquared;
 	}
 
-	/** Set the variance for regular (non default) features, generally 
-	 *   smaller than the variance for the default features.
-	 */
 	public void setRegularGaussianPriorVariance(double sigmaSquared) {
 		this.gaussianPriorVariance = sigmaSquared;
 	}
@@ -179,7 +152,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 		System.arraycopy (buff, 0, parameters, 0, buff.length);
 	}
 
-	/** The log probability of the observed count vectors given the features. */
 	public double getValue () {
 
 		if (! cachedValueStale) { return cachedValue; }
@@ -187,7 +159,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 		numGetValueCalls++;
 		cachedValue = 0;
 
-		// Incorporate likelihood of data
 		double[] scores = new double[ trainingList.getTargetAlphabet().size() ];
 		double value = 0.0;
 
@@ -198,25 +169,17 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 			FeatureVector multinomialValues = (FeatureVector) instance.getTarget();
 			if (multinomialValues == null) { continue; }
 
-			//System.out.println("L Now "+inputAlphabet.size()+" regular features.");
-                
-			// Get the predicted probability of each class
-			//   under the current model parameters
 			this.classifier.getUnnormalizedClassificationScores(instance, scores);
 
 			double sumScores = 0.0;
 
-			// Exponentiate the scores
 			for (int i=0; i<scores.length; i++) {
-				// Due to underflow, it's very likely that some of these scores will be 0.0.
 				scores[i] = Math.exp(scores[i]);
 				sumScores += scores[i];
 			}
 
 			FeatureVector features = (FeatureVector) instance.getData();
 
-			// This is really an int, but since FeatureVectors are defined as doubles, 
-			//  avoid casting.
 			double totalLength = 0;
 
 			for (int i = 0; i < multinomialValues.numLocations(); i++) {
@@ -230,8 +193,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 			value -= (Dirichlet.logGammaStirling(sumScores + totalLength) -
 					  Dirichlet.logGammaStirling(sumScores));
                     
-			// Error Checking:
-                
 			if (Double.isNaN(value)) {
 				logger.fine ("DCMMaxEntTrainer: Instance " + instance.getName() +
 							 "has NaN value.");
@@ -250,18 +211,12 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 				return -value;
 			}
 
-			//System.out.println(value);
-
 			cachedValue += value;
                 
 			instanceIndex++;
 		}
 
-		// Incorporate prior on parameters
-
 		double prior = 0;
-
-		// The log of a gaussian prior is x^2 / -2sigma^2
 
 		for (int label = 0; label < numLabels; label++) {
 			for (int feature = 0; feature < numFeatures - 1; feature++) {
@@ -286,8 +241,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 	public void getValueGradient (double [] buffer) {
 
 		MatrixOps.setAll (cachedGradient, 0.0);
-
-		// Incorporate likelihood of data
 		double[] scores = new double[ trainingList.getTargetAlphabet().size() ];
 
 		int instanceIndex = 0;
@@ -296,16 +249,11 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 
 			FeatureVector multinomialValues = (FeatureVector) instance.getTarget();
 			if (multinomialValues == null) { continue; }
-
-			// Get the predicted probability of each class
-			//   under the current model parameters
 			this.classifier.getUnnormalizedClassificationScores(instance, scores);
 
 			double sumScores = 0.0;
 
-			// Exponentiate the scores
 			for (int i=0; i<scores.length; i++) {
-				// Due to underflow, it's very likely that some of these scores will be 0.0.
 				scores[i] = Math.exp(scores[i]);
 				sumScores += scores[i];
 			}
@@ -327,11 +275,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 				double value = features.valueAtLocation(loc);
                     
 				if (value == 0.0) { continue; }
-
-				// In a FeatureVector, there's no easy way to say "do you know
-				//   about this id?" so I've broken this into two for loops,
-				//  one for all labels, the other for just the non-zero ones.
-
 				for (int label=0; label<numLabels; label++) {
 					cachedGradient[label * numFeatures + index] -=
 						value * scores[label] * digammaDifferenceForSums;
@@ -358,8 +301,6 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 
 				}
 			}
-			// Now add the default feature
-
 			for (int label=0; label<numLabels; label++) {
 				cachedGradient[label * numFeatures + defaultFeatureIndex] -=
 					scores[label] * digammaDifferenceForSums;
@@ -406,15 +347,10 @@ public class ARTOptimizable implements Optimizable.ByGradientValue {
 				(param - gaussianPriorMean) / defaultFeatureGaussianPriorVariance;
 		}
 
-		// A parameter may be set to -infinity by an external user.
-		// We set gradient to 0 because the parameter's value can
-		// never change anyway and it will mess up future calculations
-		// on the matrix, such as norm().
 		MatrixOps.substitute (cachedGradient, Double.NEGATIVE_INFINITY, 0.0);
 
 		assert (buffer != null && buffer.length == parameters.length);
 		System.arraycopy (cachedGradient, 0, buffer, 0, cachedGradient.length);
-		//System.out.println ("DCMMaxEntTrainer gradient infinity norm = "+MatrixOps.infinityNorm(cachedGradient));
 	}
 }
 

@@ -148,10 +148,6 @@ public class ARTModel extends LDAHyper
 		System.out.println(" seconds");
 	}
 
-	/**
-	 * Use only the default features to set the topic prior (use no document
-	 * features)
-	 */
 	public void setAlphas()
 	{
 
@@ -159,9 +155,6 @@ public class ARTModel extends LDAHyper
 
 		alphaSum = 0.0;
 		smoothingOnlyMass = 0.0;
-
-		// Use only the default features to set the topic prior (use no document
-		// features)
 		for (int topic = 0; topic < numTopics; topic++)
 		{
 			alpha[topic] = Math.exp(parameters[(topic * numFeatures)
@@ -176,10 +169,6 @@ public class ARTModel extends LDAHyper
 
 	}
 
-	/**
-	 * This method sets the alphas for a hypothetical "document" that contains a
-	 * single non-default feature.
-	 */
 	public void setAlphas(int featureIndex)
 	{
 
@@ -187,9 +176,6 @@ public class ARTModel extends LDAHyper
 
 		alphaSum = 0.0;
 		smoothingOnlyMass = 0.0;
-
-		// Use only the default features to set the topic prior (use no document
-		// features)
 		for (int topic = 0; topic < numTopics; topic++)
 		{
 			alpha[topic] = Math.exp(parameters[(topic * numFeatures)
@@ -243,10 +229,6 @@ public class ARTModel extends LDAHyper
 
 	public void learnParameters()
 	{
-
-		// Create a "fake" pipe with the features in the data and
-		// a trove int-int hashmap of topic counts in the target.
-
 		if (parameterPipe == null)
 		{
 			parameterPipe = new Noop();
@@ -279,8 +261,6 @@ public class ARTModel extends LDAHyper
 				counter.increment(topic);
 			}
 
-			// Put the real target in the data field, and the
-			// topic counts in the target field
 			parameterInstances.add(new Instance(data.get(doc).instance
 					.getTarget(), counter.toFeatureVector(), null, null));
 
@@ -293,24 +273,22 @@ public class ARTModel extends LDAHyper
 
 		LimitedMemoryBFGS optimizer = new LimitedMemoryBFGS(optimizable);
 
-		// Optimize once
 		try
 		{
 			optimizer.optimize();
 		}
 		catch (OptimizationException e)
 		{
-			// step size too small
+			
 		}
 
-		// Restart with a fresh initialization to improve likelihood
 		try
 		{
 			optimizer.optimize();
 		}
 		catch (OptimizationException e)
 		{
-			// step size too small
+		
 		}
 		dmrParameters = optimizable.getClassifier();
 
@@ -324,10 +302,8 @@ public class ARTModel extends LDAHyper
 			}
 			int numTokens = tokens.getLength();
 
-			// This sets alpha[] and alphaSum
 			setAlphas(instance);
 
-			// Now cache alpha values
 			for (int topic = 0; topic < numTopics; topic++)
 			{
 				alphaCache[doc][topic] = alpha[topic];
